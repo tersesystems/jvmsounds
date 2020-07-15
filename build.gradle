@@ -14,6 +14,7 @@ repositories {
 
 dependencies {
     compile group: 'com.clojure-goes-fast', name: 'jvm-alloc-rate-meter', version: '0.1.3'
+    compile 'com.jsyn:jsyn:20170815'
 }
 
 compileJava {
