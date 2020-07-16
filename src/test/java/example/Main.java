@@ -22,7 +22,7 @@ public class Main {
 
     public static void main(String[] args) throws InterruptedException {
         // Increase this number to waste more memory
-        int wastage = 10000;
+        int wastage = 100000;
 
         JVMSounds jvmSounds = new JVMSounds();
         try {
@@ -35,6 +35,7 @@ public class Main {
     }
 
     // Create a very inefficient way of writing to a file.
+    // I could probably just create a heap buffer and throw it away, but this is more "logging" oriented.
     private static void createGarbage(int wastage) {
         Runnable garbageProducingRunnable = () -> {
             try {
