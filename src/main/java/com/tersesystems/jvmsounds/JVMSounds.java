@@ -2,10 +2,13 @@ package com.tersesystems.jvmsounds;
 
 import com.jsyn.JSyn;
 import com.jsyn.Synthesizer;
+import com.jsyn.data.AudioSample;
 import com.jsyn.instruments.DrumWoodFM;
 import com.jsyn.instruments.NoiseHit;
-import com.jsyn.unitgen.LineOut;
-import com.jsyn.unitgen.SineOscillator;
+import com.jsyn.unitgen.*;
+import com.jsyn.util.AudioSampleLoader;
+import com.jsyn.util.SampleLoader;
+import com.jsyn.util.soundfile.CustomSampleLoader;
 import com.sun.management.GarbageCollectionNotificationInfo;
 import com.sun.management.GcInfo;
 
@@ -14,6 +17,8 @@ import javax.management.Notification;
 import javax.management.NotificationEmitter;
 import javax.management.NotificationListener;
 import javax.management.openmbean.CompositeData;
+import java.io.IOException;
+import java.io.InputStream;
 import java.lang.management.GarbageCollectorMXBean;
 import java.lang.management.ManagementFactory;
 import java.util.List;
@@ -39,12 +44,14 @@ public class JVMSounds {
 
     private final DrumWoodFM drumWoodFM;
     private final NoiseHit noiseHit;
+    private final AudioSample sample;
 
     private final HiccupProducer hiccup;
     private final AllocationRateProducer alloc;
     private final GCEventProducer gc;
+    private final VariableRateDataReader samplePlayer;
 
-    public JVMSounds() {
+    public JVMSounds() throws IOException {
         synth = JSyn.createSynthesizer();
         osc = new SineOscillator();
         lineOut = new LineOut();
@@ -70,6 +77,20 @@ public class JVMSounds {
         alloc = new AllocationRateProducer(this::setAllocTone);
         gc = new GCEventProducer(this::minorGcInstrument, this::majorGcInstrument);
         hiccup = new HiccupProducer(this::hiccup);
+        SampleLoader.setJavaSoundPreferred(false);
+        InputStream resourceAsStream = this.getClass().getClassLoader().getResourceAsStream("hiccup.wav");
+        sample = SampleLoader.loadFloatSample(resourceAsStream);
+
+        if (sample.getChannelsPerFrame() == 1) {
+            synth.add(samplePlayer = new VariableRateMonoReader());
+            samplePlayer.output.connect(0, lineOut.input, 0);
+        } else if (sample.getChannelsPerFrame() == 2) {
+            synth.add(samplePlayer = new VariableRateStereoReader());
+            samplePlayer.output.connect(0, lineOut.input, 0);
+            samplePlayer.output.connect(1, lineOut.input, 1);
+        } else {
+            throw new RuntimeException("Can only play mono or stereo samples.");
+        }
     }
 
     public void minorGcInstrument(GcInfo info) {
@@ -81,8 +102,11 @@ public class JVMSounds {
     }
 
     public void hiccup(long hiccupNs) {
-        // XXX add hiccup sample here
-        // System.out.println("Hiccup duration = " + hiccupNs);
+        double millis = hiccupNs / 1e6;
+        if (millis > 50) {
+            //System.err.println("Hiccup duration in millis = " + millis);
+            samplePlayer.dataQueue.queue(sample);
+        }
     }
 
     public void setAllocVolume(double volume) {
@@ -98,6 +122,7 @@ public class JVMSounds {
 
     public void start() {
         synth.start();
+        samplePlayer.rate.set(sample.getFrameRate());
         osc.start();
         lineOut.start();
 

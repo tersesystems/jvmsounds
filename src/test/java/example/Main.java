@@ -22,15 +22,19 @@ public class Main {
 
     public static void main(String[] args) throws InterruptedException {
         // Increase this number to waste more memory
-        int wastage = 100000;
+        int wastage = 10000;
 
-        JVMSounds jvmSounds = new JVMSounds();
         try {
-            jvmSounds.start();
-            createGarbage(wastage);
-            Thread.sleep(7500 * 10);
-        } finally {
-            jvmSounds.stop();
+            JVMSounds jvmSounds = new JVMSounds();
+            try {
+                jvmSounds.start();
+                createGarbage(wastage);
+                Thread.sleep(7500 * 10);
+            } finally {
+                jvmSounds.stop();
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
         }
     }
 
