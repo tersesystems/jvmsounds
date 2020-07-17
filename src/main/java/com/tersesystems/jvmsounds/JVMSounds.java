@@ -11,6 +11,7 @@ import com.jsyn.util.SampleLoader;
 import com.jsyn.util.soundfile.CustomSampleLoader;
 import com.sun.management.GarbageCollectionNotificationInfo;
 import com.sun.management.GcInfo;
+import org.slf4j.Logger;
 
 import javax.management.ListenerNotFoundException;
 import javax.management.Notification;
@@ -37,6 +38,8 @@ import static com.sun.management.GarbageCollectionNotificationInfo.from;
  * alexander-yakushev.
  */
 public class JVMSounds {
+
+    private final Logger logger = org.slf4j.LoggerFactory.getLogger(getClass());
 
     private final Synthesizer synth;
     private final SineOscillator osc;
@@ -94,17 +97,25 @@ public class JVMSounds {
     }
 
     public void minorGcInstrument(GcInfo info) {
+        if (logger.isDebugEnabled()) {
+            logger.debug("Minor GC {}", info);
+        }
         drumWoodFM.noteOn(300, 0.5, synth.createTimeStamp());
     }
 
     public void majorGcInstrument(GcInfo info) {
+        if (logger.isDebugEnabled()) {
+            logger.debug("Major GC {}", info);
+        }
         noiseHit.noteOn(200, 1.0, synth.createTimeStamp());
     }
 
     public void hiccup(long hiccupNs) {
         double millis = hiccupNs / 1e6;
+        if (logger.isDebugEnabled()) {
+            logger.debug("Hiccup duration in millis = {}", millis);
+        }
         if (millis > 50) {
-            //System.err.println("Hiccup duration in millis = " + millis);
             samplePlayer.dataQueue.queue(sample);
         }
     }
@@ -116,7 +127,9 @@ public class JVMSounds {
     public void setAllocTone(double frequency) {
         // https://github.com/philburk/jsyn/blob/master/tests/com/jsyn/examples/ChebyshevSong.java
         // XXX ideally should set this to something that maps it to the closest note
-        //System.out.println("Allocation rate = " + frequency + " MB/sec");
+        if (logger.isDebugEnabled()) {
+            logger.debug("Allocation rate = {} MB/sec", frequency);
+        }
         osc.frequency.set(frequency);
     }
 

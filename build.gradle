@@ -16,6 +16,7 @@ dependencies {
     compile group: 'com.clojure-goes-fast', name: 'jvm-alloc-rate-meter', version: '0.1.3'
     compile group: 'com.clojure-goes-fast', name: 'jvm-hiccup-meter', version: '0.1.1'
     compile 'com.jsyn:jsyn:20170815'
+    compile group: 'org.slf4j', name: 'slf4j-api', version: '1.7.30'
 }
 
 compileJava {
