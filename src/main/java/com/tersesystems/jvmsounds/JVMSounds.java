@@ -41,6 +41,20 @@ import static com.sun.management.GarbageCollectionNotificationInfo.from;
  */
 public class JVMSounds {
 
+    /** Default allocation threshold in megabytes per second. */
+    public static final int DEFAULT_ALLOC_THRESHOLD = 300;
+
+    public static final double DEFAULT_ALLOC_VOLUME = 0.1;
+
+    public static final double DEFAULT_MINOR_GC_VOLUME = 0.6;
+
+    public static final double DEFAULT_MIXED_GC_VOLUME = 0.6;
+
+    /** Default hiccup threshold in milliseconds. */
+    public static final int DEFAULT_HICCUP_THRESHOLD = 50;
+    public static final double DEFAULT_HICCUP_VOLUME = 1.0;
+    public static final int DEFAULT_NAP_TIME = 0;
+
     private final Logger logger = Logger.getLogger(JVMSounds.class.getName());
 
     private final Synthesizer synth;
@@ -275,16 +289,16 @@ public class JVMSounds {
     }
 
     static class Configuration {
-        public long napTime = 0;
+        public long napTime = DEFAULT_NAP_TIME;
 
-        public double allocThreshold = 300;
-        public double allocVolume = 0.1;
+        public double allocThreshold = DEFAULT_ALLOC_THRESHOLD;
+        public double allocVolume = DEFAULT_ALLOC_VOLUME;
 
-        public double minorGcVolume = 0.6;
-        public double mixedGcVolume = 0.6;
+        public double minorGcVolume = DEFAULT_MINOR_GC_VOLUME;
+        public double mixedGcVolume = DEFAULT_MIXED_GC_VOLUME;
 
-        public long hiccupThreshold = 50;
-        public double hiccupVolume = 1.0;
+        public long hiccupThreshold = DEFAULT_HICCUP_THRESHOLD;
+        public double hiccupVolume = DEFAULT_HICCUP_VOLUME;
 
         public void parseArgs(String[] args) {
             for (int i = 0; i < args.length; ++i) {
