@@ -1,12 +1,9 @@
-/*
- * SPDX-License-Identifier: CC0-1.0
- *
- * Copyright 2020 Will Sargent.
- *
- * Licensed under the CC0 Public Domain Dedication;
- * You may obtain a copy of the License at
- *
- *  http://creativecommons.org/publicdomain/zero/1.0/
+/**
+ * License
+ * -------
+ * Written in 2020 by Will Sargent will@tersesystems.com
+ * To the extent possible under law, the author(s) have dedicated all copyright and related and neighboring rights to this software to the public domain worldwide. This software is distributed without any warranty.
+ * You should have received a copy of the CC0 Public Domain Dedication along with this software. If not, see <http://creativecommons.org/publicdomain/zero/1.0/>
  */
 package example;
 
