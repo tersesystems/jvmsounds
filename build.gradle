@@ -1,5 +1,8 @@
 plugins {
     id 'java'
+    id "org.shipkit.java"              version "2.2.6"
+    id "com.github.hierynomus.license" version "0.15.0"
+    id 'com.diffplug.gradle.spotless'  version '3.24.3'
 }
 
 group 'com.tersesystems.alloctone'
@@ -13,10 +16,9 @@ repositories {
 }
 
 dependencies {
-    compile group: 'com.clojure-goes-fast', name: 'jvm-alloc-rate-meter', version: '0.1.3'
-    compile group: 'com.clojure-goes-fast', name: 'jvm-hiccup-meter', version: '0.1.1'
-    compile 'com.jsyn:jsyn:20170815'
-    compile group: 'org.slf4j', name: 'slf4j-api', version: '1.7.30'
+    implementation group: 'com.clojure-goes-fast', name: 'jvm-alloc-rate-meter', version: '0.1.3'
+    implementation group: 'com.clojure-goes-fast', name: 'jvm-hiccup-meter', version: '0.1.1'
+    implementation 'com.jsyn:jsyn:20170815'
 }
 
 compileJava {

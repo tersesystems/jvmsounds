@@ -6,24 +6,26 @@ import com.jsyn.data.AudioSample;
 import com.jsyn.instruments.DrumWoodFM;
 import com.jsyn.instruments.NoiseHit;
 import com.jsyn.unitgen.*;
-import com.jsyn.util.AudioSampleLoader;
 import com.jsyn.util.SampleLoader;
-import com.jsyn.util.soundfile.CustomSampleLoader;
 import com.sun.management.GarbageCollectionNotificationInfo;
 import com.sun.management.GcInfo;
-import org.slf4j.Logger;
+import jvm_alloc_rate_meter.MeterThread;
 
 import javax.management.ListenerNotFoundException;
 import javax.management.Notification;
 import javax.management.NotificationEmitter;
 import javax.management.NotificationListener;
 import javax.management.openmbean.CompositeData;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.instrument.Instrumentation;
 import java.lang.management.GarbageCollectorMXBean;
 import java.lang.management.ManagementFactory;
 import java.util.List;
 import java.util.function.Consumer;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import static com.sun.management.GarbageCollectionNotificationInfo.GARBAGE_COLLECTION_NOTIFICATION;
 import static com.sun.management.GarbageCollectionNotificationInfo.from;
@@ -39,117 +41,150 @@ import static com.sun.management.GarbageCollectionNotificationInfo.from;
  */
 public class JVMSounds {
 
-    private final Logger logger = org.slf4j.LoggerFactory.getLogger(getClass());
+    private final Logger logger = Logger.getLogger(JVMSounds.class.getName());
 
     private final Synthesizer synth;
-    private final SineOscillator osc;
     private final LineOut lineOut;
 
-    private final DrumWoodFM drumWoodFM;
-    private final NoiseHit noiseHit;
-    private final AudioSample sample;
+    private final SineOscillator allocTone;
+    private final DrumWoodFM minorGcSound;
+    private final NoiseHit mixedGcSound;
+    private final AudioSample hiccupSound;
+    private final VariableRateDataReader hiccupPlayer;
 
-    private final HiccupProducer hiccup;
-    private final AllocationRateProducer alloc;
-    private final GCEventProducer gc;
-    private final VariableRateDataReader samplePlayer;
+    private final HiccupProducer hiccupProducer;
+    private final AllocationRateProducer allocProducer;
+    private final GCEventProducer gcEventProducer;
+
+    private final Configuration config = new Configuration();
+
+    public static void premain(String argsString, Instrumentation inst) throws IOException {
+        String[] args = (argsString != null) ? argsString.split("[ ,;]+") : new String[0];
+        commonMain(args);
+    }
+
+    private static void nap(long millis) {
+        try {
+            long startMillis = System.currentTimeMillis();
+            while (System.currentTimeMillis() - startMillis < millis) {
+                Thread.sleep(10);
+            }
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public static JVMSounds commonMain(String[] args) throws IOException {
+        JVMSounds jvmSounds = null;
+        try {
+            jvmSounds = new JVMSounds(args);
+            jvmSounds.start();
+        } catch (FileNotFoundException e) {
+            System.err.println("heaputils: Failed to open log file.");
+        }
+        return jvmSounds;
+    }
 
     public JVMSounds() throws IOException {
+        this(new String[0]);
+    }
+
+    public JVMSounds(String[] args) throws IOException {
+        config.parseArgs(args);
+
         synth = JSyn.createSynthesizer();
-        osc = new SineOscillator();
+        allocTone = new SineOscillator();
         lineOut = new LineOut();
-        drumWoodFM = new DrumWoodFM();
-        noiseHit = new NoiseHit();
+        minorGcSound = new DrumWoodFM();
+        mixedGcSound = new NoiseHit();
 
-        synth.add(osc);
+        synth.add(allocTone);
         synth.add(lineOut);
-        synth.add(drumWoodFM);
-        synth.add(noiseHit);
+        synth.add(minorGcSound);
+        synth.add(mixedGcSound);
 
-        osc.output.connect(0, lineOut.input, 0);
-        osc.output.connect(0, lineOut.input, 1);
+        allocTone.output.connect(0, lineOut.input, 0);
+        allocTone.output.connect(0, lineOut.input, 1);
 
-        drumWoodFM.getOutput().connect(0, lineOut.input, 0);
-        drumWoodFM.getOutput().connect(0, lineOut.input, 1);
+        minorGcSound.getOutput().connect(0, lineOut.input, 0);
+        minorGcSound.getOutput().connect(0, lineOut.input, 1);
 
-        noiseHit.getOutput().connect(0, lineOut.input, 0);
-        noiseHit.getOutput().connect(0, lineOut.input, 1);
+        mixedGcSound.getOutput().connect(0, lineOut.input, 0);
+        mixedGcSound.getOutput().connect(0, lineOut.input, 1);
 
-        setAllocVolume(0.1);
-
-        alloc = new AllocationRateProducer(this::setAllocTone);
-        gc = new GCEventProducer(this::minorGcInstrument, this::majorGcInstrument);
-        hiccup = new HiccupProducer(this::hiccup);
+        allocProducer = new AllocationRateProducer(this::setAllocTone);
+        gcEventProducer = new GCEventProducer(this::playMinorGC, this::playMixedGC);
+        hiccupProducer = new HiccupProducer(this::hiccup);
         SampleLoader.setJavaSoundPreferred(false);
         InputStream resourceAsStream = this.getClass().getClassLoader().getResourceAsStream("hiccup.wav");
-        sample = SampleLoader.loadFloatSample(resourceAsStream);
+        hiccupSound = SampleLoader.loadFloatSample(resourceAsStream);
 
-        if (sample.getChannelsPerFrame() == 1) {
-            synth.add(samplePlayer = new VariableRateMonoReader());
-            samplePlayer.output.connect(0, lineOut.input, 0);
-        } else if (sample.getChannelsPerFrame() == 2) {
-            synth.add(samplePlayer = new VariableRateStereoReader());
-            samplePlayer.output.connect(0, lineOut.input, 0);
-            samplePlayer.output.connect(1, lineOut.input, 1);
+        if (hiccupSound.getChannelsPerFrame() == 1) {
+            synth.add(hiccupPlayer = new VariableRateMonoReader());
+            hiccupPlayer.output.connect(0, lineOut.input, 0);
+        } else if (hiccupSound.getChannelsPerFrame() == 2) {
+            synth.add(hiccupPlayer = new VariableRateStereoReader());
+            hiccupPlayer.output.connect(0, lineOut.input, 0);
+            hiccupPlayer.output.connect(1, lineOut.input, 1);
         } else {
             throw new RuntimeException("Can only play mono or stereo samples.");
         }
+        hiccupPlayer.rate.set(hiccupSound.getFrameRate());
+
+        if (config.napTime > 0) {
+            nap(config.napTime);
+        }
     }
 
-    public void minorGcInstrument(GcInfo info) {
-        if (logger.isDebugEnabled()) {
-            logger.debug("Minor GC {}", info);
-        }
-        drumWoodFM.noteOn(300, 0.5, synth.createTimeStamp());
+    public void playMinorGC(GcInfo info) {
+        logger.log(Level.FINE, "Minor GC {0}", info);
+        minorGcSound.noteOn(300, config.minorGcVolume, synth.createTimeStamp());
     }
 
-    public void majorGcInstrument(GcInfo info) {
-        if (logger.isDebugEnabled()) {
-            logger.debug("Major GC {}", info);
-        }
-        noiseHit.noteOn(200, 1.0, synth.createTimeStamp());
+    public void playMixedGC(GcInfo info) {
+        logger.log(Level.FINE, "Mixed GC {0}", info);
+        mixedGcSound.noteOn(200, config.mixedGcVolume, synth.createTimeStamp());
     }
 
     public void hiccup(long hiccupNs) {
         double millis = hiccupNs / 1e6;
-        if (logger.isDebugEnabled()) {
-            logger.debug("Hiccup duration in millis = {}", millis);
+        logger.log(Level.FINE, "Hiccup duration in millis = {0}", millis);
+        if (millis > config.hiccupThreshold) {
+            hiccupPlayer.dataQueue.queue(hiccupSound);
         }
-        if (millis > 50) {
-            samplePlayer.dataQueue.queue(sample);
-        }
-    }
-
-    public void setAllocVolume(double volume) {
-        osc.amplitude.set(volume);
     }
 
     public void setAllocTone(double frequency) {
         // https://github.com/philburk/jsyn/blob/master/tests/com/jsyn/examples/ChebyshevSong.java
         // XXX ideally should set this to something that maps it to the closest note
-        if (logger.isDebugEnabled()) {
-            logger.debug("Allocation rate = {} MB/sec", frequency);
+        logger.log(Level.FINE, "Allocation rate = {0} MB/sec", frequency);
+        if (frequency < config.allocThreshold) {
+            allocTone.amplitude.set(0);
+        } else {
+            allocTone.frequency.set(frequency);
+            allocTone.amplitude.set(config.allocVolume);
         }
-        osc.frequency.set(frequency);
     }
 
     public void start() {
         synth.start();
-        samplePlayer.rate.set(sample.getFrameRate());
-        osc.start();
+        allocTone.start();
         lineOut.start();
 
-        hiccup.start();
-        alloc.start();
-        gc.start();
+        hiccupProducer.start();
+        allocProducer.start();
+        gcEventProducer.start();
+
+        hiccupPlayer.amplitude.set(config.hiccupVolume);
+        allocTone.amplitude.set(config.allocVolume);
     }
 
     public void stop() {
-        gc.stop();
-        alloc.stop();
-        hiccup.stop();
+        gcEventProducer.stop();
+        allocProducer.stop();
+        hiccupProducer.stop();
         lineOut.stop();
-        osc.stop();
+        allocTone.stop();
         synth.stop();
     }
 
@@ -202,11 +237,11 @@ public class JVMSounds {
 
     // https://github.com/clojure-goes-fast/jvm-alloc-rate-meter
     private static class AllocationRateProducer {
-        private final jvm_alloc_rate_meter.MeterThread meterThread;
+        private final MeterThread meterThread;
 
         public AllocationRateProducer(Consumer<Double> rateConsumer) {
             int intervalMs = 50;
-            meterThread = new jvm_alloc_rate_meter.MeterThread(bytes -> {
+            meterThread = new MeterThread(bytes -> {
                 double mbytes = bytes / 1e6;
                 rateConsumer.accept(mbytes);
             }, intervalMs);
@@ -238,4 +273,49 @@ public class JVMSounds {
             meterThread.terminate();
         }
     }
+
+    static class Configuration {
+        public long napTime = 0;
+
+        public double allocThreshold = 300;
+        public double allocVolume = 0.1;
+
+        public double minorGcVolume = 0.6;
+        public double mixedGcVolume = 0.6;
+
+        public long hiccupThreshold = 50;
+        public double hiccupVolume = 1.0;
+
+        public void parseArgs(String[] args) {
+            for (int i = 0; i < args.length; ++i) {
+                if (args[i].equals("-n")) {
+                    napTime = Long.parseLong(args[++i]);
+                } else if (args[i].equals("-at")) {
+                    allocThreshold = Double.parseDouble(args[++i]);
+                } else if (args[i].equals("-av")) {
+                    allocVolume = Double.parseDouble(args[++i]);
+                } else if (args[i].equals("-mv")) {
+                    minorGcVolume = Double.parseDouble(args[++i]);
+                }else if (args[i].equals("-Mv")) {
+                    mixedGcVolume = Double.parseDouble(args[++i]);
+                } else if (args[i].equals("-ht")) {
+                    hiccupThreshold = Long.parseLong(args[++i]);
+                } else if (args[i].equals("-hv")) {
+                     hiccupVolume = Double.parseDouble(args[++i]);
+                 } else {
+                    System.out.println("Usage: " +
+                            "[-n napTimeMs] " +
+                            "[-at allocThresholdMs] " +
+                            "[-av allocVolume 0.0 - 1.0] " +
+                            "[-mv minorGCVolume 0.0 - 1.0] " +
+                            "[-Mv mixedGCVolume 0.0 - 1.0] " +
+                            "[-ht hiccupThresholdMs] " +
+                            "[-hv hiccupVolume 0.0 - 1.0] ");
+
+                    System.exit(1);
+                }
+            }
+        }
+    }
+
 }
