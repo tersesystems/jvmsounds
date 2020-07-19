@@ -6,7 +6,6 @@ plugins {
 }
 
 group 'com.tersesystems.jvmsounds'
-version '1.0-SNAPSHOT'
 
 repositories {
     maven {
