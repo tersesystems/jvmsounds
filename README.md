@@ -9,12 +9,30 @@ This is a very simple JVM library that plays JVM events as audio sounds.
 
 Please see [Logging vs Memory](https://tersesystems.com/blog/2020/07/09/logging-vs-memory/) and [the tweet](https://twitter.com/will_sargent/status/1281718634289573890).
 
+## Resolver
+
+The libraries are in Bintray under `tersesystems/maven`.  Installation instructions are similar to [terse-logback installation](https://tersesystems.github.io/terse-logback/installation/):
+
+```groovy
+repositories {
+    maven {
+        url  "https://dl.bintray.com/tersesystems/maven" 
+    }
+}
+```
+
+or SBT:
+
+```
+resolvers += Resolver.bintrayRepo("tersesystems", "maven")
+```
+
 ## Library
 
 The library has dependencies on jSyn and on `jvm-alloc-rate-meter` and `jvm-hiccup-meter`.  It is plain Java, no Scala library required.
 
 ```scala
-libraryDependencies += "com.tersesystems.jvmsounds" % "jvmsounds" % "1.0-SNAPSHOT"
+libraryDependencies += "com.tersesystems.jvmsounds" % "jvmsounds" % "0.0.1"
 ```
 
 ## Java Agent
@@ -22,7 +40,7 @@ libraryDependencies += "com.tersesystems.jvmsounds" % "jvmsounds" % "1.0-SNAPSHO
 You can run this as a java agent.  I like using [sbt-javaagent](https://github.com/sbt/sbt-javaagent).
 
 ```scala
-javaAgents += "com.tersesystems.jvmsounds" % "jvmsounds" % "1.0-SNAPSHOT"
+javaAgents += "com.tersesystems.jvmsounds" % "jvmsounds" % "0.0.1"
 ```
 
 ## Options
