@@ -3,15 +3,25 @@ plugins {
     id "org.shipkit.java"              version "2.2.6"
     id "com.github.hierynomus.license" version "0.15.0"
     id 'com.diffplug.gradle.spotless'  version '3.24.3'
+    id 'com.github.johnrengelman.shadow' version '5.2.0'
 }
 
-group 'com.tersesystems.alloctone'
+group 'com.tersesystems.jvmsounds'
 version '1.0-SNAPSHOT'
 
 repositories {
-    mavenCentral()
     maven {
         url "https://repo.clojars.org/"
+    }
+}
+
+jar {
+    manifest {
+        attributes 'Automatic-Module-Name': "com.tersesystems.jvmsounds"
+        attributes "Premain-Class": "com.tersesystems.jvmsounds.JVMSounds"
+        attributes "Agent-Class": "com.tersesystems.jvmsounds.JVMSounds"
+        attributes "Can-Redefine-Classes": "true"
+        attributes "Can-Retransform-Classes": "true"
     }
 }
 
